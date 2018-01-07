@@ -5,7 +5,7 @@ function init(port) {
 	if(!port) port = 8999
 	ws = new Websockets(`ws://localhost:${port}`)
 	console.log('Client: websocket started')
-		ws.on('open', () => {
+	ws.on('open', () => {
 		console.log('Client: open')
 	})
 	ws.on('message', (message) => {

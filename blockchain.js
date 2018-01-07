@@ -8,27 +8,20 @@ let unprocessedTransactions = []
 let isMining = false
 const blockSize = 20
 const miner = '127.0.0.1.2'
-let portClient = 8999
 let portServer = 8999
 
 readPort()
 
 const wsServer = require('./websocketServer.js')
 const wsClient = require('./websocketClient.js')
-
 keypress(process.stdin)
-wsClient.init(portClient)
 wsServer.init(portServer)
 readCli()
 
 function readPort() {
-	console.log('after client', portClient, 'after server', portServer)
 	// If you specify a port
-	let portFound = process.argv.indexOf('--port-client')
-	if(portFound != -1) portClient = Number(process.argv[portFound + 1])
-	portFound = process.argv.indexOf('--port-server')
+	let portFound = process.argv.indexOf('--port-server')
 	if(portFound != -1) portServer = Number(process.argv[portFound + 1])
-	console.log('after client', portClient, 'after server', portServer)
 }
 
 function readCli() {
@@ -118,6 +111,13 @@ function showBlocks() {
 	console.log(blocks)
 }
 
+const numberOfServers = 5
 process.stdin.on('keypress', (ch, key) => {
 	if(key.name == 'a') wsServer.sendAllMessage('Message - . -')
+	if(key.name == 'w') {
+		for(let i = 0; i < numberOfServers; i++) {
+			let port = 9000 + i
+			wsClient.init(port)
+		}
+	}
 })

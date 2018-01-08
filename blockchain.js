@@ -3,27 +3,34 @@
 // 3. To have this running you need at least 1 user mining. To mine simply execute the command "mine start" and "mine stop". You'll see the transactions being processed
 const fs = require('fs')
 const keypress = require('keypress')
+const { exec, execSync } = require('child_process')
 let blocks = []
 let unprocessedTransactions = []
 let isMining = false
 const blockSize = 20
 const miner = '127.0.0.1.2'
 let portServer = 8999
+let portClient = 8999
 
-readPort()
+readParameters()
 
 const wsServer = require('./websocketServer.js')
 const wsClient = require('./websocketClient.js')
 keypress(process.stdin)
 wsServer.init(portServer)
+wsClient.init(portClient)
 readCli()
 
-function readPort() {
+// Reads the parameters when the user starts the blockchain
+function readParameters() {
 	// If you specify a port
 	let portFound = process.argv.indexOf('--port-server')
 	if(portFound != -1) portServer = Number(process.argv[portFound + 1])
+	portFound = process.argv.indexOf('--port-client')
+	if(portFound != -1) portClient = Number(process.argv[portFound + 1])
 }
 
+// Reads the optional parameters to interact with the blockchain
 function readCli() {
 	switch(process.argv[2]) {
 		case 'mine':
@@ -111,13 +118,19 @@ function showBlocks() {
 	console.log(blocks)
 }
 
-const numberOfServers = 5
+const numberOfServers = 500
+const numberOfClients = 500
 process.stdin.on('keypress', (ch, key) => {
-	if(key.name == 'a') wsServer.sendAllMessage('Message - . -')
-	if(key.name == 'w') {
-		for(let i = 0; i < numberOfServers; i++) {
+	if(key.name == 'm') wsServer.sendAllMessage('Message - . -')
+	if(key.name == 'c') {
+		for(let i = 0; i < numberOfClients; i++) {
 			let port = 9000 + i
 			wsClient.init(port)
+		}
+	}
+	if(key.name == 's') {
+		for(let i = 0; i < numberOfServers; i++) {
+			exec(`start cmd.exe /K node blockchain.js --port-server ${9000 + i}`, (err, stdout, stderr) => {})
 		}
 	}
 })

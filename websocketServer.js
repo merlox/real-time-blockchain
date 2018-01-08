@@ -5,7 +5,7 @@ const clients = []
 function init(port) {
 	if(!port) port = 8999
 	wss = new WebSocketServer({port})
-	console.log('Server: websockets started')
+	console.log(`Server: websockets started on port ${port}`)
 	// Server websocket
 	wss.on('connection', (ws) => {
 		console.log('Server: connected client')

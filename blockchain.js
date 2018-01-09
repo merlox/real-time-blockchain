@@ -2,60 +2,37 @@
 // 2. The transactions are accomulated in a block {} object of transactions with a variable size. Default 20 transactions in a block
 // 3. To have this running you need at least 1 user mining. To mine simply execute the command "mine start" and "mine stop". You'll see the transactions being processed
 const fs = require('fs')
-const keypress = require('keypress')
 const { exec, execSync } = require('child_process')
+const cli = require('./cli.js')
+const wsServer = require('./websocketServer.js')
+const wsClient = require('./websocketClient.js')
+const config = {
+	portServer: 8999,
+	blockSize: 20,
+	miner: '127.0.0.1.2'
+}
 let blocks = []
 let unprocessedTransactions = []
 let isMining = false
-const blockSize = 20
-const miner = '127.0.0.1.2'
-let portServer = 8999
-let portClient = 8999
 
-readParameters()
+init()
 
-const wsServer = require('./websocketServer.js')
-const wsClient = require('./websocketClient.js')
-keypress(process.stdin)
-wsServer.init(portServer)
-wsClient.init(portClient)
-readCli()
+// 1. Read the parameters when starting the blockchain
+// 2. Interact with the cli
+async function init() {
+	let ports = cli.readParameters()
+	if(ports.portClient != undefined) wsClient.init(ports.portClient)
+	if(ports.portServer != undefined) config.portServer = ports.portServer
+	wsServer.init(config.portServer)
 
-// Reads the parameters when the user starts the blockchain
-function readParameters() {
-	// If you specify a port
-	let portFound = process.argv.indexOf('--port-server')
-	if(portFound != -1) portServer = Number(process.argv[portFound + 1])
-	portFound = process.argv.indexOf('--port-client')
-	if(portFound != -1) portClient = Number(process.argv[portFound + 1])
-}
-
-// Reads the optional parameters to interact with the blockchain
-function readCli() {
-	switch(process.argv[2]) {
-		case 'mine':
-			switch(process.argv[3]) {
-				case 'start': startMining()
-					break
-				case 'stop': stopMining()
-					break
-				default: startMining()
-			}
-			break
-		case 'transaction':
-			if(process.argv[3] === undefined) throw new Error('-You need to specify the transaction message-')
-			if(process.argv[4] === undefined) throw new Error('-You need to specify the transaction gas-')
-			generateTransaction(process.argv[3], process.argv[4])
-			break
-		case 'show-transactions':
-			showUnprocessedTransactions()
-			break
-		case 'show-blocks':
-			showBlocks()
-			break
+	// You can stop it by typing 'exit' or ctrl + c
+	while(true) {
+		let answer = await cli.interactWithUser()
+		processResponse(answer)
 	}
 }
 
+// To generate a transaction given the data and the gas
 function generateTransaction(data, gas) {
 	let transaction = {
 		from: '127.0.0.1', // ip of the user
@@ -79,7 +56,7 @@ function generateTransaction(data, gas) {
 // 1. Sort the unprocessedTransactions
 // 2. Add those transactions to the block up to 20 transactions
 function mineBlock() {
-	if(unprocessedTransactions.length >= blockSize) {
+	if(unprocessedTransactions.length >= config.blockSize) {
 		let block = []
 		const blockNumber = blocks.length
 		unprocessedTransactions.sort((a, b) => {
@@ -87,13 +64,13 @@ function mineBlock() {
 		})
 		console.log('Sorted array', unprocessedTransactions)
 		// Take the block of 20 transactions
-		block = unprocessedTransactions.slice(0, blockSize)
+		block = unprocessedTransactions.slice(0, config.blockSize)
 		// Add the miner to each transaction
 		for(let i = 0; i < block.length; i++) {
-			block[i].minedBy = miner
+			block[i].minedBy = config.miner
 			block[i].blockNumber = blockNumber
 		}
-		unprocessedTransactions.splice(0, blockSize)
+		unprocessedTransactions.splice(0, config.blockSize)
 		blocks.push(block)
 		console.log('Mined block number', blockNumber)
 	}
@@ -105,32 +82,71 @@ function startMining() {
 	isMining = true
 }
 
+// To stop mining
 function stopMining() {
 	console.log('Stopped mining')
 	isMining = false
 }
 
+// To see the unprocessed transactions
 function showUnprocessedTransactions() {
 	console.log(unprocessedTransactions)
 }
 
+// To see the blocks
 function showBlocks() {
 	console.log(blocks)
 }
 
-const numberOfServers = 500
-const numberOfClients = 500
-process.stdin.on('keypress', (ch, key) => {
-	if(key.name == 'm') wsServer.sendAllMessage('Message - . -')
-	if(key.name == 'c') {
-		for(let i = 0; i < numberOfClients; i++) {
-			let port = 9000 + i
+// To process the response from interacting with the user interface
+function processResponse(response) {
+	let port
+	switch(response[0]) {
+		case 'exit':
+			console.log('bye')
+			process.exit(0)
+			break
+		case 'connect':
+			port = response[1]
 			wsClient.init(port)
-		}
+			break
+		case 'server':
+			port = response[1]
+			exec(`start cmd.exe /K node blockchain.js --port-server ${port}`, (err, stdout, stderr) => {})
+			break
+		case 'message':
+			wsServer.sendAllMessage(response[1])
+			break
+		case 'ping':
+			wsServer.sendAllMessage('pong')
+			break
+		case 'bulk-clients':
+			let numberOfClients = response[1]
+			for(let i = 0; i < numberOfClients; i++) {
+				port = 9000 + i
+				wsClient.init(port)
+			}
+			break
+		case 'bulk-servers':
+			let numberOfServers = response[1]
+			for(let i = 0; i < numberOfServers; i++) {
+				exec(`start cmd.exe /K node blockchain.js --port-server ${9000 + i}`, (err, stdout, stderr) => {})
+			}
+			break
+		case 'mine-start':
+			startMining()
+			break
+		case 'mine-stop':
+			stopMining()
+			break
+		case 'transaction':
+			generateTransaction(response[1], response[2])
+			break
+		case 'show-transactions':
+			showUnprocessedTransactions()
+			break
+		case 'show-blocks':
+			showBlocks()
+			break
 	}
-	if(key.name == 's') {
-		for(let i = 0; i < numberOfServers; i++) {
-			exec(`start cmd.exe /K node blockchain.js --port-server ${9000 + i}`, (err, stdout, stderr) => {})
-		}
-	}
-})
+}

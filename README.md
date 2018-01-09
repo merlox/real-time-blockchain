@@ -27,3 +27,7 @@ All the nodes are connected with each other. When a new node gets online, he mus
 - You can mine with "mine". When you do it, you'll download the entire blockchain.
 - You can create transactions with "transaction"
 - You can download the entire blockchain manually with "download"
+
+// The next step
+1. When a single node connects to a blockchain of several users (2 or more), he'll receive the list of nodes so that he can connect to all of them.
+2. And the server that you connected to, will broadcast your server ip for all the other nodes
